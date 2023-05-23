@@ -1,4 +1,10 @@
 # CacheService
+Documentation:https://cacheservice.readme.io/docs/intro
+
+
+Download: https://github.com/BrandonForbrad/CacheService/blob/main/CacheService.rbxm
+
+
 An advanced system designed to optimize data storage, retrieval, and replication and proper thread controlling in Roblox games.
 
 Introducing the CacheService (Roblox Cache Framework) - an advanced system designed to optimize data storage, retrieval, and replication in Roblox games. This powerful framework incorporates cached datastore saves with datastore session locking, providing enhanced performance and security. With an array of useful functions, including a clean cache feature and client replication capabilities, it empowers developers to streamline their game's data management process.
