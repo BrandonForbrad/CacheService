@@ -1,0 +1,11 @@
+[package]
+name = "BrandomForbrad/CacheService"
+description = ""
+version = "1.0.0"
+authors = ["BrandonForbrad"]
+realm = "shared"
+registry = "https://github.com/upliftgames/wally-index"
+include = ["wally.toml"]
+
+[dependencies]
+Promise = "evaera/promise@2.0.1"
