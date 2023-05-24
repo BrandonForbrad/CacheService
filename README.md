@@ -1,5 +1,4 @@
 # CacheService
-Documentation:https://cacheservice.readme.io/docs/intro
 
 
 Download: https://github.com/BrandonForbrad/CacheService/blob/main/CacheService.rbxm
