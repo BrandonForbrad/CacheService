@@ -1,5 +1,6 @@
 # CacheService
 
+["CURRENTLY WORKING ON A NEW DOCUMENTATION"] For now go to Documentation folder
 
 Download: https://github.com/BrandonForbrad/CacheService/blob/main/CacheService.rbxm
 
