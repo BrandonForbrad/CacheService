@@ -27,21 +27,21 @@ local function deepSearch(tab, Find, Search)
 	local found = nil
 
 	for Entry,Value in pairs(tab)  do
+		if Search == "Entry" then
+			if Entry == Find then
+				found = Value
+				break
+			end
+		end
+		if Search == "Value" then
+			if Value == Find then
+				found = Entry
+				break
+			end
+		end
 		if type(Value) == "table" then
 			found = deepSearch(Value, Find, Search)
-		else
-			if Search == "Entry" then
-				if Entry == Find then
-					found = Value
-					break
-				end
-			end
-			if Search == "Value" then
-				if Value == Find then
-					found = Entry
-					break
-				end
-			end
+			
 		end
 	end
 
@@ -72,7 +72,12 @@ end
 
 function CacheService:ReadCache(CacheName : "String (Cache Name)" , player : "Player Object")
 	if RunService:IsServer() then
-		return deepCopy( CacheService.List[CacheName].Storage[player.UserId] )
+		if player then
+			return deepCopy( CacheService.List[CacheName].Storage[player.UserId] )
+		else
+			return deepCopy( CacheService.List[CacheName].Storage )
+		end
+		
 	end
 	
 	if RunService:IsClient() then 
@@ -92,10 +97,16 @@ function CacheService:GetCache(CacheName : "String (Cache Name)")
 		end
 		local Set = {}
 
-		function Set:FindValue(Entry : "Entry")
+		function Set:FindValue(Entry : "Entry", Custom : "Custom Cache Table")
+			if Custom ~= nil then
+				return deepSearch(Custom, Entry, "Entry")
+			end
 			return deepSearch(CacheService.LocalCache[CacheName], Entry, "Entry")
 		end
-		function Set:FindEntry(Value : "Value")
+		function Set:FindEntry(Value : "Value", Custom : "Custom Cache Table")
+			if Custom ~= nil then
+				return deepSearch(Custom, Value, "Value")
+			end
 			return deepSearch(CacheService.LocalCache[CacheName], Value, "Value")
 		end
 		function Set:OnUpdate(func : "Bindable Callback | NewCache, OldCache")
@@ -106,6 +117,107 @@ function CacheService:GetCache(CacheName : "String (Cache Name)")
 			UpdateBind.Event:Connect(func)
 
 			return UpdateBind
+		end
+		
+		function Set:OnCondition(conditionFunction : "Function that must return false or true", trueFunction : "function that fires when the condition is met")
+
+			coroutine.wrap(function() 
+				if trueFunction == nil then return end
+				repeat RunService.Heartbeat:Wait() until conditionFunction() or CacheService.LocalCache[CacheName] == nil
+				trueFunction()
+			end)()
+			local ConditionSet = {} 
+			function ConditionSet:Wait()
+				repeat RunService.Heartbeat:Wait() until conditionFunction() or CacheService.LocalCache[CacheName] == nil
+			end
+
+			return ConditionSet
+		end
+		
+		function Set:PipeDescendants(Entry : "String (Entry of value to update) ", SearchObject : "Object (To Search through)" , ObjectName : "String (Object Name to Change)" , Property : "String (Object Property to Change)")
+			local function Update(NewValue)
+				for _,desc in pairs(SearchObject:GetDescendants()) do
+					if desc.Name == ObjectName then
+						pcall(function() 
+							desc[Property] = NewValue
+						end)
+					end
+				end
+			end
+			
+			if Set:FindValue(Entry) ~= nil then
+				Update(Set:FindValue(Entry))
+			end
+			
+			local Bind
+			Bind = Set:OnUpdate(function(NewCache, OldCache) 
+				if SearchObject.Parent == nil then
+					Bind:Destroy()
+					return	
+				end
+				
+				local NewValue = Set:FindValue(Entry, NewCache)
+				local OldValue = Set:FindValue(Entry, OldCache)
+				
+				if NewValue ~= OldValue then return end
+				
+				Update(NewValue)
+				
+			end)
+		end
+		function Set:PipeChildren(Entry : "String (Entry of value to update) ", SearchObject : "Object (To Search through)" , ObjectName : "String (Object Name to Change)" , Property : "String (Object Property to Change)")
+			local function Update(NewValue)
+				for _,desc in pairs(SearchObject:GetChildren()) do
+					if desc.Name == ObjectName then
+						pcall(function() 
+							desc[Property] = NewValue
+						end)
+					end
+				end
+			end
+
+			if Set:FindValue(Entry) ~= nil then
+				Update(Set:FindValue(Entry))
+			end
+
+			local Bind
+			Bind = Set:OnUpdate(function(NewCache, OldCache) 
+				if SearchObject.Parent == nil then
+					Bind:Destroy()
+					return	
+				end
+				local NewValue = Set:FindValue(Entry, NewCache)
+				local OldValue = Set:FindValue(Entry, OldCache)
+
+				if NewValue ~= OldValue then return end
+
+				Update(NewValue)
+
+			end)
+		end
+		function Set:PipeObject(Entry : "String (Entry of value to update) ", Object : "Object (To Change)", Property : "String (Object Property to Change)")
+			local function Update(NewValue)
+				Object[Property] = NewValue
+			end
+
+			if Set:FindValue(Entry) ~= nil then
+				Update(Set:FindValue(Entry))
+			end
+
+			local Bind
+			Bind = Set:OnUpdate(function(NewCache, OldCache) 
+				if Object.Parent == nil then
+					Bind:Destroy()
+					return	
+				end
+				local NewValue = Set:FindValue(Entry, NewCache)
+				local OldValue = Set:FindValue(Entry, OldCache)
+
+				if NewValue ~= OldValue then return end
+
+				Update(NewValue)
+
+			end)
 		end
 		return Set
 		
@@ -139,6 +251,24 @@ function CacheService:Create(CacheName : "String (Cache Name)"  , Info : "Cache 
 		
 	}
 	
+	-- ON CONDITION FUNCTION
+	function Set:OnCondition(conditionFunction : "Function that must return false or true", trueFunction : "function that fires when the condition is met")
+		
+		coroutine.wrap(function() 
+			if trueFunction == nil then return end
+			repeat RunService.Heartbeat:Wait() until conditionFunction() or CacheService.List[CacheName] == nil
+			trueFunction()
+		end)()
+		local ConditionSet = {} 
+		function ConditionSet:Wait()
+			repeat RunService.Heartbeat:Wait() until conditionFunction() or CacheService.List[CacheName] == nil
+		end
+		
+		return ConditionSet
+		
+	end
+	
+	-- DELETE FUNCTION
 	function Set:Delete()
 		deepClean(CacheService.List[CacheName].Storage)
 		for _,Bind in pairs(CacheService.Server.Binds:GetChildren()) do
@@ -158,21 +288,206 @@ function CacheService:Create(CacheName : "String (Cache Name)"  , Info : "Cache 
 		end)()
 		
 	end
+	
+	-- FIND AND PIPE FUNCTIONS
+	
 	if Info.Global then
+		Set.Storage = DefaultCache
 		function Set:FindValue(Entry : "Entry")
 			return deepSearch(CacheService.List[CacheName].Storage, Entry, "Entry")
 		end
 		function Set:FindEntry(Value : "Value")
 			return deepSearch(CacheService.List[CacheName].Storage, Value, "Value")
 		end
-	else
+		
+		function Set:PipeDescendants(Entry : "String (Entry of value to update) ", SearchObject : "Object (To Search through)" , ObjectName : "String (Object Name to Change)" , Property : "String (Object Property to Change)")
+			local function Update(NewValue)
+				for _,desc in pairs(SearchObject:GetDescendants()) do
+					if desc.Name == ObjectName then
+						pcall(function() 
+							desc[Property] = NewValue
+						end)
+					end
+				end
+			end
+
+			if Set:FindValue(Entry) ~= nil then
+				Update(Set:FindValue(Entry))
+			end
+
+			local Bind
+			Bind = Set:OnUpdate(function(NewCache, OldCache) 
+				if SearchObject.Parent == nil then
+					Bind:Destroy()
+					return	
+				end
+
+				local NewValue = Set:FindValue(Entry, NewCache)
+				local OldValue = Set:FindValue(Entry, OldCache)
+
+				if NewValue ~= OldValue then return end
+
+				Update(NewValue)
+
+			end)
+		end
+		function Set:PipeChildren(Entry : "String (Entry of value to update) ", SearchObject : "Object (To Search through)" , ObjectName : "String (Object Name to Change)" , Property : "String (Object Property to Change)")
+			local function Update(NewValue)
+				for _,desc in pairs(SearchObject:GetChildren()) do
+					if desc.Name == ObjectName then
+						pcall(function() 
+							print(NewValue)
+							desc[Property] = NewValue
+						end)
+					end
+				end
+			end
+
+			if Set:FindValue(Entry) ~= nil then
+				Update(Set:FindValue(Entry))
+			end
+
+			local Bind
+			Bind = Set:OnUpdate(function(NewCache, OldCache) 
+				if SearchObject.Parent == nil then
+					Bind:Destroy()
+					return	
+				end
+				local NewValue = Set:FindValue(Entry, NewCache)
+				local OldValue = Set:FindValue(Entry, OldCache)
+
+				if NewValue ~= OldValue then return end
+
+				Update(NewValue)
+
+			end)
+		end
+		function Set:PipeObject(Entry : "String (Entry of value to update) ", Object : "Object (To Change)", Property : "String (Object Property to Change)")
+			local function Update(NewValue)
+				Object[Property] = NewValue
+			end
+
+			if Set:FindValue(Entry) ~= nil then
+				Update(Set:FindValue(Entry))
+			end
+
+			local Bind
+			Bind = Set:OnUpdate(function(NewCache, OldCache) 
+				if Object.Parent == nil then
+					Bind:Destroy()
+					return	
+				end
+				local NewValue = Set:FindValue(Entry, NewCache)
+				local OldValue = Set:FindValue(Entry, OldCache)
+
+				if NewValue ~= OldValue then return end
+
+				Update(NewValue)
+
+			end)
+		end
+	else --- NON GLOBAL FIND AND PIPE FUNCTIONS
 		function Set:FindValue(player : "Player Object (Ignore if global)", Entry : "Entry")
 			return deepSearch(CacheService.List[CacheName].Storage[player.UserId], Entry, "Entry")
 		end
 		function Set:FindEntry(player : "Player Object (Ignore if global)", Value : "Value")
 			return deepSearch(CacheService.List[CacheName].Storage[player.UserId], Value, "Value")
 		end
+		
+		function Set:PipeDescendants(player : "Player Object (Ignore if global)", Entry : "String (Entry of value to update) ", SearchObject : "Object (To Search through)" , ObjectName : "String (Object Name to Change)" , Property : "String (Object Property to Change)")
+			local function Update(NewValue)
+				for _,desc in pairs(SearchObject:GetDescendants()) do
+					if desc.Name == ObjectName then
+						pcall(function() 
+							desc[Property] = NewValue
+						end)
+					end
+				end
+			end
+
+			if Set:FindValue(player, Entry) ~= nil then
+				Update(Set:FindValue(player, Entry))
+			end
+
+			local Bind
+			Bind = Set:OnUpdate(function(uptplayer, NewCache, OldCache) 
+				if SearchObject.Parent == nil or NewCache == nil then
+					Bind:Destroy()
+					return	
+				end
+				if player ~= uptplayer then return end
+				local NewValue = Set:FindValue(player, Entry, NewCache)
+				local OldValue = Set:FindValue(player, Entry, OldCache)
+
+				if NewValue ~= OldValue then return end
+
+				Update(NewValue)
+				
+			end, player)
+			
+			
+			
+		end
+		function Set:PipeChildren(player : "Player Object (Ignore if global)", Entry : "String (Entry of value to update) ", SearchObject : "Object (To Search through)" , ObjectName : "String (Object Name to Change)" , Property : "String (Object Property to Change)")
+			local function Update(NewValue)
+				for _,desc in pairs(SearchObject:GetChildren()) do
+					if desc.Name == ObjectName then
+						pcall(function() 
+							desc[Property] = NewValue
+						end)
+					end
+				end
+			end
+
+			if Set:FindValue(player, Entry) ~= nil then
+				Update(Set:FindValue(player, Entry))
+			end
+
+			local Bind
+			Bind = Set:OnUpdate(function(uptplayer, NewCache, OldCache) 
+				if SearchObject.Parent == nil then
+					Bind:Destroy()
+					return	
+				end
+				if player ~= uptplayer then return end
+				if NewCache == nil then return end
+				local NewValue = Set:FindValue(player, Entry, NewCache)
+				local OldValue = Set:FindValue(player, Entry, OldCache)
+
+				if NewValue ~= OldValue then return end
+
+				Update(NewValue)
+
+			end, player)
+		end
+		function Set:PipeObject(player : "Player Object (Ignore if global)", Entry : "String (Entry of value to update) ", Object : "Object (To Change)", Property : "String (Object Property to Change)")
+			local function Update(NewValue)
+				Object[Property] = NewValue
+			end
+
+			if Set:FindValue(player, Entry) ~= nil then
+				Update(Set:FindValue(player, Entry))
+			end
+
+			local Bind
+			Bind = Set:OnUpdate(function(uptplayer, NewCache, OldCache) 
+				if Object.Parent == nil then
+					Bind:Destroy()
+					return
+				end
+				if player ~= uptplayer then return end
+				
+				local NewValue = Set:FindValue(player, Entry, NewCache)
+				local OldValue = Set:FindValue(player, Entry, OldCache)
+
+				if NewValue ~= OldValue then return end
+
+				Update(NewValue)
+
+			end, player)
+		end
 	end
+	
 	
 
 	if Info.DatastoreSave then
@@ -180,13 +495,17 @@ function CacheService:Create(CacheName : "String (Cache Name)"  , Info : "Cache 
 	end
 	
 	
-	function Set:OnUpdate(func : "Bindable Callback | player (If not Global), NewCache, OldCache")
+	function Set:OnUpdate(func : "Bindable Callback | player (If not Global), NewCache, OldCache", player : "Set to player to remove bind on leave")
 		
 		local UpdateBind = Instance.new("BindableEvent", CacheService.Server.Binds)
 		UpdateBind.Name = CacheName.."|".."OnUpdate"
 		
 		UpdateBind.Event:Connect(func)
-		
+		coroutine.wrap(function() 
+			if player == nil then return end
+			repeat RunService.Heartbeat:Wait() until player.Parent == nil
+			UpdateBind:Destroy()
+		end)()
 		return UpdateBind
 	end
 	
@@ -327,6 +646,11 @@ function CacheService:Create(CacheName : "String (Cache Name)"  , Info : "Cache 
 		end)
 		return
 	end
+	
+	coroutine.wrap(function() 
+		Set:PlayerAdded(function() end)	
+		Set:PlayerRemoved(function() end)	
+	end)()
 	
 	
 	
