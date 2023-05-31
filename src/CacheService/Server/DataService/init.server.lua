@@ -46,10 +46,6 @@ local CurrentData = {}
 
 local function UpdateData(player, DataName, Updater)
 	CurrentData[player.UserId][DataName] = Updater(CurrentData[player.UserId][DataName])
-	local DataObj = player.Profile:FindFirstChild(DataName) 
-	if DataObj ~= nil then
-		DataObj.Value = CurrentData[player.UserId][DataName] 
-	end
 end
 
 
