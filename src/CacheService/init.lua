@@ -557,6 +557,9 @@ function CacheService:Create(CacheName : "String (Cache Name)"  , Info : "Cache 
 				Bind:Fire(player, CacheService.List[CacheName].Storage[player.UserId], deepCopy( OldCache ))
 			end
 		end
+		if Info.DatastoreSave then
+			CacheService.Server.DataService.UpdateData:Invoke(player, CacheName, function() return CacheService.List[CacheName].Storage[player.UserId]  end )
+		end
 		
 		local InUpdateRequest = {}
 		if Info.Replicate == true and InUpdateRequest[player.UserId] == nil then
